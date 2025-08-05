@@ -18,7 +18,7 @@ runs:
         echo "🌀 Running under strace: $@" >> strace_logs/bash_calls.log
 
         # Run the command with strace
-        strace -f -tt -e trace=file -o "$logfile" /bin/bash "$@"
+        sudo -E strace -f -tt -e trace=file -o "$logfile" /bin/bash "$@"
         EOF
 
         chmod +x ci-bin/bash
