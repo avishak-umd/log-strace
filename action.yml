@@ -5,6 +5,7 @@ inputs:
     description: 'Directory to write .log files'
     default: 'strace-logs'
 runs:
+  using: 'composite'
   steps:
     - name: Install strace
       shell: bash
