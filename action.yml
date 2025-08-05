@@ -5,7 +5,7 @@ inputs:
     description: 'Directory to write .log files'
     default: 'strace-logs'
 runs:
-  using: 'composite'
+  using: 'composite Action'
   steps:
     - name: Install strace
       run: |
