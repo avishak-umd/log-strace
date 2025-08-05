@@ -7,6 +7,7 @@ inputs:
 runs:
   using: 'composite Action'
   steps:
+    - shell: bash
     - name: Install strace
       run: |
         sudo apt-get update -qq
