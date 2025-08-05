@@ -1,25 +1,53 @@
-name: Setup Strace Wrapper Shell
-description: Replaces bash shell with strace-wrapped shell for CI logging
-
+name: 'Universal Strace'
+description: 'Attach strace to every child process in this job'
+inputs:
+  outdir:
+    description: 'Directory to write .log files'
+    default: 'strace-logs'
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
-    - shell: bash
+    - name: Install strace
       run: |
-        mkdir -p ci-bin strace_logs
+        sudo apt-get update -qq
+        sudo apt-get install -y strace
 
-        cat << 'EOF' > ci-bin/bash
-        #!/bin/bash
-        set -e
+    - name: Prepare output dir
+      run: mkdir -p ${{ inputs.outdir }}
 
-        cmd_hash=$(echo "$@" | sha1sum | cut -d ' ' -f1)
-        logfile="strace_logs/step_${cmd_hash}.log"
+    - name: Launch strace daemon
+      shell: bash
+      run: |
+        # Lower ptrace_scope so root can attach to spawned procs
+        echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope >/dev/null
 
-        echo "🌀 Running under strace: $@" >> strace_logs/bash_calls.log
+        # Background loop: every second, attach strace to brand-new children
+        (
+          prev_pids=""
+          while true; do
+            # list all processes in this session (same SID as this shell)
+            pids=$(ps -o pid,ppid,sid -e | awk -v sid=$(ps -o sid= $$) \
+                   '$3==sid { print $1 }')
 
-        # Run the command with strace
-        sudo -E strace -f -tt -e trace=file -o "$logfile" /bin/bash "$@"
-        EOF
+            for pid in $pids; do
+              # only attach once per PID and skip ourself & strace procs
+              if [[ "$prev_pids" != *" $pid "* ]] && \
+                 ! ps -p $pid -o cmd= | grep -qE 'strace|bash'; then
 
-        chmod +x ci-bin/bash
-        echo "$GITHUB_WORKSPACE/ci-bin" >> $GITHUB_PATH
+                sudo strace \
+                  -ff \
+                  -e trace=file,execve \
+                  -p $pid \
+                  -o ${{ inputs.outdir }}/strace-$pid.log \
+                  </dev/null &
+
+                prev_pids="$prev_pids $pid"
+              fi
+            done
+
+            sleep 1
+          done
+        ) &
+
+    - name: Export output dir
+      run: echo "STRACE_OUT=${{ inputs.outdir }}" >> $GITHUB_ENV
