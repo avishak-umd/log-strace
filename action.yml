@@ -1,17 +1,34 @@
-name: Setup strace logging
-description: Log every shell command with strace
+name: File Access Logger
+description: Logs all file accesses during wrapped command
 runs:
-  using: composite
+  using: "composite"
   steps:
     - shell: bash
       run: |
-        mkdir -p ci-bin strace_logs
-        cat <<'EOF' > ci-bin/bash
-        #!/bin/bash
-        set -e
-        cmd_hash=$(echo "$@" | sha1sum | awk '{print $1}')
-        mkdir -p strace_logs
-        exec strace -tt -f -o strace_logs/step_${cmd_hash}.log /bin/bash "$@"
-        EOF
-        chmod +x ci-bin/bash
-        echo "PATH=$GITHUB_WORKSPACE/ci-bin:$PATH" >> "$GITHUB_ENV"
+        sudo apt-get update && sudo apt-get install -y inotify-tools
+        mkdir -p file_access_logs
+        inotifywait -m -r . \
+          -e open,access,modify,close_write,move,create,delete \
+          --format '%T %w%f %e' --timefmt '%Y-%m-%d %H:%M:%S' \
+          > file_access_logs/inotify.log &
+        echo $! > file_access_logs/inotify.pid
+
+    - shell: bash
+      run: |
+        echo "Running command: ${{ inputs.command }}"
+        eval "${{ inputs.command }}"
+
+    - shell: bash
+      run: |
+        kill $(cat file_access_logs/inotify.pid)
+        sleep 1
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: file-access-logs
+        path: file_access_logs/inotify.log
+
+inputs:
+  command:
+    description: "The command to run"
+    required: true
