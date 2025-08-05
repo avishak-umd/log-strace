@@ -1,5 +1,5 @@
 name: File Access Logger
-description: Logs all file accesses during wrapped command
+description: Logs all file accesses during a command
 runs:
   using: "composite"
   steps:
@@ -15,7 +15,7 @@ runs:
 
     - shell: bash
       run: |
-        echo "Running command: ${{ inputs.command }}"
+        echo "▶️ Running: ${{ inputs.command }}"
         eval "${{ inputs.command }}"
 
     - shell: bash
