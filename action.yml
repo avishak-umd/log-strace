@@ -1,26 +1,25 @@
-name: Strace Logger
-description: Runs a command with strace capturing all file accesses
-
-inputs:
-  command:
-    description: "The full command to run (e.g., ./ci-script.sh)"
-    required: true
+name: Setup Strace Wrapper Shell
+description: Replaces bash shell with strace-wrapped shell for CI logging
 
 runs:
   using: "composite"
   steps:
     - shell: bash
       run: |
-        sudo apt-get update && sudo apt-get install -y strace
-        mkdir -p strace_logs
+        mkdir -p ci-bin strace_logs
 
-        logfile="strace_logs/trace_$(date +%s).log"
-        echo "📦 Running under strace. Logging to $logfile"
+        cat << 'EOF' > ci-bin/bash
+        #!/bin/bash
+        set -e
 
-        # Wrap command under strace
-        strace -f -tt -e trace=file -o "$logfile" bash -c "${{ inputs.command }}"
-    
-    - uses: actions/upload-artifact@v3
-      with:
-        name: strace-logs
-        path: strace_logs/
+        cmd_hash=$(echo "$@" | sha1sum | cut -d ' ' -f1)
+        logfile="strace_logs/step_${cmd_hash}.log"
+
+        echo "🌀 Running under strace: $@" >> strace_logs/bash_calls.log
+
+        # Run the command with strace
+        strace -f -tt -e trace=file -o "$logfile" /bin/bash "$@"
+        EOF
+
+        chmod +x ci-bin/bash
+        echo "$GITHUB_WORKSPACE/ci-bin" >> $GITHUB_PATH
