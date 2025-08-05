@@ -23,7 +23,7 @@ runs:
         kill $(cat file_access_logs/inotify.pid)
         sleep 1
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: file-access-logs
         path: file_access_logs/inotify.log
